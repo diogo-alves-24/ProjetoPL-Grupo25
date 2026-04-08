@@ -1,0 +1,539 @@
+Created by PLY version 3.11 (http://www.dabeaz.com/ply)
+
+Unused terminals:
+
+    AND
+    BOOL
+    CHARACTER
+    CONTINUE
+    DCOLON
+    DO
+    ELSE
+    END
+    ENDIF
+    EQEQ
+    GE
+    GOTO
+    GT
+    IF
+    INTEGER
+    LE
+    LEN
+    LOGICAL
+    LT
+    NE
+    NOT
+    OR
+    PRINT
+    PROGRAM
+    READ
+    REAL
+    THEN
+
+Grammar
+
+Rule 0     S' -> program
+Rule 1     program -> statements
+Rule 2     statements -> statements statement
+Rule 3     statements -> statement
+Rule 4     statement -> IDEN EQ expr
+Rule 5     expr -> expr ADD expr
+Rule 6     expr -> expr SUB expr
+Rule 7     expr -> expr MUL expr
+Rule 8     expr -> expr DIV expr
+Rule 9     expr -> expr POW expr
+Rule 10    expr -> INT
+Rule 11    expr -> FLOAT
+Rule 12    expr -> STRING
+Rule 13    expr -> IDEN
+Rule 14    expr -> ( expr )
+
+Terminals, with rules where they appear
+
+(                    : 14
+)                    : 14
+ADD                  : 5
+AND                  : 
+BOOL                 : 
+CHARACTER            : 
+CONTINUE             : 
+DCOLON               : 
+DIV                  : 8
+DO                   : 
+ELSE                 : 
+END                  : 
+ENDIF                : 
+EQ                   : 4
+EQEQ                 : 
+FLOAT                : 11
+GE                   : 
+GOTO                 : 
+GT                   : 
+IDEN                 : 4 13
+IF                   : 
+INT                  : 10
+INTEGER              : 
+LE                   : 
+LEN                  : 
+LOGICAL              : 
+LT                   : 
+MUL                  : 7
+NE                   : 
+NOT                  : 
+OR                   : 
+POW                  : 9
+PRINT                : 
+PROGRAM              : 
+READ                 : 
+REAL                 : 
+STRING               : 12
+SUB                  : 6
+THEN                 : 
+error                : 
+
+Nonterminals, with rules where they appear
+
+expr                 : 4 5 5 6 6 7 7 8 8 9 9 14
+program              : 0
+statement            : 2 3
+statements           : 1 2
+
+Parsing method: LALR
+
+state 0
+
+    (0) S' -> . program
+    (1) program -> . statements
+    (2) statements -> . statements statement
+    (3) statements -> . statement
+    (4) statement -> . IDEN EQ expr
+
+    IDEN            shift and go to state 4
+
+    program                        shift and go to state 1
+    statements                     shift and go to state 2
+    statement                      shift and go to state 3
+
+state 1
+
+    (0) S' -> program .
+
+
+
+state 2
+
+    (1) program -> statements .
+    (2) statements -> statements . statement
+    (4) statement -> . IDEN EQ expr
+
+    $end            reduce using rule 1 (program -> statements .)
+    IDEN            shift and go to state 4
+
+    statement                      shift and go to state 5
+
+state 3
+
+    (3) statements -> statement .
+
+    IDEN            reduce using rule 3 (statements -> statement .)
+    $end            reduce using rule 3 (statements -> statement .)
+
+
+state 4
+
+    (4) statement -> IDEN . EQ expr
+
+    EQ              shift and go to state 6
+
+
+state 5
+
+    (2) statements -> statements statement .
+
+    IDEN            reduce using rule 2 (statements -> statements statement .)
+    $end            reduce using rule 2 (statements -> statements statement .)
+
+
+state 6
+
+    (4) statement -> IDEN EQ . expr
+    (5) expr -> . expr ADD expr
+    (6) expr -> . expr SUB expr
+    (7) expr -> . expr MUL expr
+    (8) expr -> . expr DIV expr
+    (9) expr -> . expr POW expr
+    (10) expr -> . INT
+    (11) expr -> . FLOAT
+    (12) expr -> . STRING
+    (13) expr -> . IDEN
+    (14) expr -> . ( expr )
+
+    INT             shift and go to state 9
+    FLOAT           shift and go to state 10
+    STRING          shift and go to state 11
+    IDEN            shift and go to state 7
+    (               shift and go to state 12
+
+    expr                           shift and go to state 8
+
+state 7
+
+    (13) expr -> IDEN .
+
+    ADD             reduce using rule 13 (expr -> IDEN .)
+    SUB             reduce using rule 13 (expr -> IDEN .)
+    MUL             reduce using rule 13 (expr -> IDEN .)
+    DIV             reduce using rule 13 (expr -> IDEN .)
+    POW             reduce using rule 13 (expr -> IDEN .)
+    IDEN            reduce using rule 13 (expr -> IDEN .)
+    $end            reduce using rule 13 (expr -> IDEN .)
+    )               reduce using rule 13 (expr -> IDEN .)
+
+
+state 8
+
+    (4) statement -> IDEN EQ expr .
+    (5) expr -> expr . ADD expr
+    (6) expr -> expr . SUB expr
+    (7) expr -> expr . MUL expr
+    (8) expr -> expr . DIV expr
+    (9) expr -> expr . POW expr
+
+    IDEN            reduce using rule 4 (statement -> IDEN EQ expr .)
+    $end            reduce using rule 4 (statement -> IDEN EQ expr .)
+    ADD             shift and go to state 13
+    SUB             shift and go to state 14
+    MUL             shift and go to state 15
+    DIV             shift and go to state 16
+    POW             shift and go to state 17
+
+
+state 9
+
+    (10) expr -> INT .
+
+    ADD             reduce using rule 10 (expr -> INT .)
+    SUB             reduce using rule 10 (expr -> INT .)
+    MUL             reduce using rule 10 (expr -> INT .)
+    DIV             reduce using rule 10 (expr -> INT .)
+    POW             reduce using rule 10 (expr -> INT .)
+    IDEN            reduce using rule 10 (expr -> INT .)
+    $end            reduce using rule 10 (expr -> INT .)
+    )               reduce using rule 10 (expr -> INT .)
+
+
+state 10
+
+    (11) expr -> FLOAT .
+
+    ADD             reduce using rule 11 (expr -> FLOAT .)
+    SUB             reduce using rule 11 (expr -> FLOAT .)
+    MUL             reduce using rule 11 (expr -> FLOAT .)
+    DIV             reduce using rule 11 (expr -> FLOAT .)
+    POW             reduce using rule 11 (expr -> FLOAT .)
+    IDEN            reduce using rule 11 (expr -> FLOAT .)
+    $end            reduce using rule 11 (expr -> FLOAT .)
+    )               reduce using rule 11 (expr -> FLOAT .)
+
+
+state 11
+
+    (12) expr -> STRING .
+
+    ADD             reduce using rule 12 (expr -> STRING .)
+    SUB             reduce using rule 12 (expr -> STRING .)
+    MUL             reduce using rule 12 (expr -> STRING .)
+    DIV             reduce using rule 12 (expr -> STRING .)
+    POW             reduce using rule 12 (expr -> STRING .)
+    IDEN            reduce using rule 12 (expr -> STRING .)
+    $end            reduce using rule 12 (expr -> STRING .)
+    )               reduce using rule 12 (expr -> STRING .)
+
+
+state 12
+
+    (14) expr -> ( . expr )
+    (5) expr -> . expr ADD expr
+    (6) expr -> . expr SUB expr
+    (7) expr -> . expr MUL expr
+    (8) expr -> . expr DIV expr
+    (9) expr -> . expr POW expr
+    (10) expr -> . INT
+    (11) expr -> . FLOAT
+    (12) expr -> . STRING
+    (13) expr -> . IDEN
+    (14) expr -> . ( expr )
+
+    INT             shift and go to state 9
+    FLOAT           shift and go to state 10
+    STRING          shift and go to state 11
+    IDEN            shift and go to state 7
+    (               shift and go to state 12
+
+    expr                           shift and go to state 18
+
+state 13
+
+    (5) expr -> expr ADD . expr
+    (5) expr -> . expr ADD expr
+    (6) expr -> . expr SUB expr
+    (7) expr -> . expr MUL expr
+    (8) expr -> . expr DIV expr
+    (9) expr -> . expr POW expr
+    (10) expr -> . INT
+    (11) expr -> . FLOAT
+    (12) expr -> . STRING
+    (13) expr -> . IDEN
+    (14) expr -> . ( expr )
+
+    INT             shift and go to state 9
+    FLOAT           shift and go to state 10
+    STRING          shift and go to state 11
+    IDEN            shift and go to state 7
+    (               shift and go to state 12
+
+    expr                           shift and go to state 19
+
+state 14
+
+    (6) expr -> expr SUB . expr
+    (5) expr -> . expr ADD expr
+    (6) expr -> . expr SUB expr
+    (7) expr -> . expr MUL expr
+    (8) expr -> . expr DIV expr
+    (9) expr -> . expr POW expr
+    (10) expr -> . INT
+    (11) expr -> . FLOAT
+    (12) expr -> . STRING
+    (13) expr -> . IDEN
+    (14) expr -> . ( expr )
+
+    INT             shift and go to state 9
+    FLOAT           shift and go to state 10
+    STRING          shift and go to state 11
+    IDEN            shift and go to state 7
+    (               shift and go to state 12
+
+    expr                           shift and go to state 20
+
+state 15
+
+    (7) expr -> expr MUL . expr
+    (5) expr -> . expr ADD expr
+    (6) expr -> . expr SUB expr
+    (7) expr -> . expr MUL expr
+    (8) expr -> . expr DIV expr
+    (9) expr -> . expr POW expr
+    (10) expr -> . INT
+    (11) expr -> . FLOAT
+    (12) expr -> . STRING
+    (13) expr -> . IDEN
+    (14) expr -> . ( expr )
+
+    INT             shift and go to state 9
+    FLOAT           shift and go to state 10
+    STRING          shift and go to state 11
+    IDEN            shift and go to state 7
+    (               shift and go to state 12
+
+    expr                           shift and go to state 21
+
+state 16
+
+    (8) expr -> expr DIV . expr
+    (5) expr -> . expr ADD expr
+    (6) expr -> . expr SUB expr
+    (7) expr -> . expr MUL expr
+    (8) expr -> . expr DIV expr
+    (9) expr -> . expr POW expr
+    (10) expr -> . INT
+    (11) expr -> . FLOAT
+    (12) expr -> . STRING
+    (13) expr -> . IDEN
+    (14) expr -> . ( expr )
+
+    INT             shift and go to state 9
+    FLOAT           shift and go to state 10
+    STRING          shift and go to state 11
+    IDEN            shift and go to state 7
+    (               shift and go to state 12
+
+    expr                           shift and go to state 22
+
+state 17
+
+    (9) expr -> expr POW . expr
+    (5) expr -> . expr ADD expr
+    (6) expr -> . expr SUB expr
+    (7) expr -> . expr MUL expr
+    (8) expr -> . expr DIV expr
+    (9) expr -> . expr POW expr
+    (10) expr -> . INT
+    (11) expr -> . FLOAT
+    (12) expr -> . STRING
+    (13) expr -> . IDEN
+    (14) expr -> . ( expr )
+
+    INT             shift and go to state 9
+    FLOAT           shift and go to state 10
+    STRING          shift and go to state 11
+    IDEN            shift and go to state 7
+    (               shift and go to state 12
+
+    expr                           shift and go to state 23
+
+state 18
+
+    (14) expr -> ( expr . )
+    (5) expr -> expr . ADD expr
+    (6) expr -> expr . SUB expr
+    (7) expr -> expr . MUL expr
+    (8) expr -> expr . DIV expr
+    (9) expr -> expr . POW expr
+
+    )               shift and go to state 24
+    ADD             shift and go to state 13
+    SUB             shift and go to state 14
+    MUL             shift and go to state 15
+    DIV             shift and go to state 16
+    POW             shift and go to state 17
+
+
+state 19
+
+    (5) expr -> expr ADD expr .
+    (5) expr -> expr . ADD expr
+    (6) expr -> expr . SUB expr
+    (7) expr -> expr . MUL expr
+    (8) expr -> expr . DIV expr
+    (9) expr -> expr . POW expr
+
+    ADD             reduce using rule 5 (expr -> expr ADD expr .)
+    SUB             reduce using rule 5 (expr -> expr ADD expr .)
+    IDEN            reduce using rule 5 (expr -> expr ADD expr .)
+    $end            reduce using rule 5 (expr -> expr ADD expr .)
+    )               reduce using rule 5 (expr -> expr ADD expr .)
+    MUL             shift and go to state 15
+    DIV             shift and go to state 16
+    POW             shift and go to state 17
+
+  ! MUL             [ reduce using rule 5 (expr -> expr ADD expr .) ]
+  ! DIV             [ reduce using rule 5 (expr -> expr ADD expr .) ]
+  ! POW             [ reduce using rule 5 (expr -> expr ADD expr .) ]
+  ! ADD             [ shift and go to state 13 ]
+  ! SUB             [ shift and go to state 14 ]
+
+
+state 20
+
+    (6) expr -> expr SUB expr .
+    (5) expr -> expr . ADD expr
+    (6) expr -> expr . SUB expr
+    (7) expr -> expr . MUL expr
+    (8) expr -> expr . DIV expr
+    (9) expr -> expr . POW expr
+
+    ADD             reduce using rule 6 (expr -> expr SUB expr .)
+    SUB             reduce using rule 6 (expr -> expr SUB expr .)
+    IDEN            reduce using rule 6 (expr -> expr SUB expr .)
+    $end            reduce using rule 6 (expr -> expr SUB expr .)
+    )               reduce using rule 6 (expr -> expr SUB expr .)
+    MUL             shift and go to state 15
+    DIV             shift and go to state 16
+    POW             shift and go to state 17
+
+  ! MUL             [ reduce using rule 6 (expr -> expr SUB expr .) ]
+  ! DIV             [ reduce using rule 6 (expr -> expr SUB expr .) ]
+  ! POW             [ reduce using rule 6 (expr -> expr SUB expr .) ]
+  ! ADD             [ shift and go to state 13 ]
+  ! SUB             [ shift and go to state 14 ]
+
+
+state 21
+
+    (7) expr -> expr MUL expr .
+    (5) expr -> expr . ADD expr
+    (6) expr -> expr . SUB expr
+    (7) expr -> expr . MUL expr
+    (8) expr -> expr . DIV expr
+    (9) expr -> expr . POW expr
+
+    ADD             reduce using rule 7 (expr -> expr MUL expr .)
+    SUB             reduce using rule 7 (expr -> expr MUL expr .)
+    MUL             reduce using rule 7 (expr -> expr MUL expr .)
+    DIV             reduce using rule 7 (expr -> expr MUL expr .)
+    IDEN            reduce using rule 7 (expr -> expr MUL expr .)
+    $end            reduce using rule 7 (expr -> expr MUL expr .)
+    )               reduce using rule 7 (expr -> expr MUL expr .)
+    POW             shift and go to state 17
+
+  ! POW             [ reduce using rule 7 (expr -> expr MUL expr .) ]
+  ! ADD             [ shift and go to state 13 ]
+  ! SUB             [ shift and go to state 14 ]
+  ! MUL             [ shift and go to state 15 ]
+  ! DIV             [ shift and go to state 16 ]
+
+
+state 22
+
+    (8) expr -> expr DIV expr .
+    (5) expr -> expr . ADD expr
+    (6) expr -> expr . SUB expr
+    (7) expr -> expr . MUL expr
+    (8) expr -> expr . DIV expr
+    (9) expr -> expr . POW expr
+
+    ADD             reduce using rule 8 (expr -> expr DIV expr .)
+    SUB             reduce using rule 8 (expr -> expr DIV expr .)
+    MUL             reduce using rule 8 (expr -> expr DIV expr .)
+    DIV             reduce using rule 8 (expr -> expr DIV expr .)
+    IDEN            reduce using rule 8 (expr -> expr DIV expr .)
+    $end            reduce using rule 8 (expr -> expr DIV expr .)
+    )               reduce using rule 8 (expr -> expr DIV expr .)
+    POW             shift and go to state 17
+
+  ! POW             [ reduce using rule 8 (expr -> expr DIV expr .) ]
+  ! ADD             [ shift and go to state 13 ]
+  ! SUB             [ shift and go to state 14 ]
+  ! MUL             [ shift and go to state 15 ]
+  ! DIV             [ shift and go to state 16 ]
+
+
+state 23
+
+    (9) expr -> expr POW expr .
+    (5) expr -> expr . ADD expr
+    (6) expr -> expr . SUB expr
+    (7) expr -> expr . MUL expr
+    (8) expr -> expr . DIV expr
+    (9) expr -> expr . POW expr
+
+    ADD             reduce using rule 9 (expr -> expr POW expr .)
+    SUB             reduce using rule 9 (expr -> expr POW expr .)
+    MUL             reduce using rule 9 (expr -> expr POW expr .)
+    DIV             reduce using rule 9 (expr -> expr POW expr .)
+    IDEN            reduce using rule 9 (expr -> expr POW expr .)
+    $end            reduce using rule 9 (expr -> expr POW expr .)
+    )               reduce using rule 9 (expr -> expr POW expr .)
+    POW             shift and go to state 17
+
+  ! POW             [ reduce using rule 9 (expr -> expr POW expr .) ]
+  ! ADD             [ shift and go to state 13 ]
+  ! SUB             [ shift and go to state 14 ]
+  ! MUL             [ shift and go to state 15 ]
+  ! DIV             [ shift and go to state 16 ]
+
+
+state 24
+
+    (14) expr -> ( expr ) .
+
+    ADD             reduce using rule 14 (expr -> ( expr ) .)
+    SUB             reduce using rule 14 (expr -> ( expr ) .)
+    MUL             reduce using rule 14 (expr -> ( expr ) .)
+    DIV             reduce using rule 14 (expr -> ( expr ) .)
+    POW             reduce using rule 14 (expr -> ( expr ) .)
+    IDEN            reduce using rule 14 (expr -> ( expr ) .)
+    $end            reduce using rule 14 (expr -> ( expr ) .)
+    )               reduce using rule 14 (expr -> ( expr ) .)
+
