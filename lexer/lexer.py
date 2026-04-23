@@ -7,13 +7,14 @@ t_POW = r"\*\*"
 t_MUL = r"\*"
 t_DIV = r"/"
 t_EQ = r"="
-t_DCOLON = r"::"
+
 t_EQEQ = r"\.EQ\."
 t_NE = r"\.NE\."
 t_LE = r"\.LE\."
 t_LT = r"\.LT\."
 t_GE = r"\.GE\."
 t_GT = r"\.GT\."
+
 t_AND = r"\.AND\."
 t_OR  = r"\.OR\."
 t_NOT = r"\.NOT\."
@@ -54,39 +55,12 @@ def t_newline(t):
     t.lexer.lineno += len(t.value)
 
 def t_error(t):
-  print("Invalid symbol:", t.value[0])
-  t.lexer.skip(1)
+    print("Invalid symbol:", t.value[0])
+    t.lexer.skip(1)
 
 lexer = lex.lex()
 
-def tokenize(input):
-  lexer.input(input)
-  for tok in lexer:
-      print(tok)
-
-"""
-tokenize(
-! Comentario inicial
-
-PROGRAM TESTE
-
-INTEGER A, B
-REAL X
-LOGICAL FLAG
-CHARACTER (LEN = 20) :: NAME
-
-A = 10
-B = 2
-X = 3.14
-
-NAME = 'Zara Ali'
-
-FLAG = .TRUE.
-
-PRINT *, 'Valores iniciais:'
-PRINT *, A, B, X
-PRINT *, NAME
-
-END
-)
-"""
+def tokenize(text):
+    lexer.input(text)
+    for tok in lexer:
+        print(tok)

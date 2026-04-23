@@ -7,13 +7,14 @@ reserved = {
     "integer": "INTEGER",
     "real": "REAL",
     "character": "CHARACTER",
-    "len": "LEN",
     "logical": "LOGICAL",
     "do": "DO",
     "continue": "CONTINUE",
     "goto": "GOTO",
     "print": "PRINT",
     "read": "READ",
+    "function": "FUNCTION",
+    "return": "RETURN",
     "end": "END"
 }
 
@@ -29,7 +30,6 @@ tokens = [
     "POW",
     "EQ",
     "IDEN",
-    "DCOLON",
 
     # relacionais
     "EQEQ",
