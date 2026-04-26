@@ -1,22 +1,29 @@
 import ply.yacc as yacc
 
 from lexer.tokens import tokens
-from lexer.lexer import lexer
+from lexer.lexer import lexer, preprocess
 
+
+# ===========================================================================
+# Precedência de operadores
+# (do menor para o maior — a última linha tem maior precedência)
+# ===========================================================================
 
 precedence = (
-    ("left", "OR"),
-    ("left", "AND"),
-    ("right", "NOT"),
-    ("nonassoc", "EQEQ", "NE", "LT", "LE", "GT", "GE"),
-    ("left", "ADD", "SUB"),
-    ("left", "MUL", "DIV"),
-    ("right", "POW"),
-    ("right", "UMINUS", "UPLUS"),
+    ("left",    "OR"),
+    ("left",    "AND"),
+    ("right",   "NOT"),
+    ("nonassoc","EQEQ", "NE", "LT", "LE", "GT", "GE"),
+    ("left",    "ADD", "SUB"),
+    ("left",    "MUL", "DIV"),
+    ("right",   "POW"),
+    ("right",   "UMINUS", "UPLUS"),
 )
 
 
+# ===========================================================================
 # Unidade de compilação
+# ===========================================================================
 
 def p_compilation_unit(p):
     "compilation_unit : main_program subprogram_list_opt"
@@ -53,31 +60,21 @@ def p_subprogram(p):
     p[0] = p[1]
 
 
+# ===========================================================================
 # Funções
+# ===========================================================================
 
 def p_function_definition(p):
     "function_definition : function_type FUNCTION IDEN '(' param_list_opt ')' body END"
     p[0] = ("function", p[1], p[3], p[5], p[7])
 
 
-def p_function_type_integer(p):
-    "function_type : INTEGER"
-    p[0] = "INTEGER"
-
-
-def p_function_type_real(p):
-    "function_type : REAL"
-    p[0] = "REAL"
-
-
-def p_function_type_logical(p):
-    "function_type : LOGICAL"
-    p[0] = "LOGICAL"
-
-
-def p_function_type_character(p):
-    "function_type : CHARACTER"
-    p[0] = "CHARACTER"
+def p_function_type(p):
+    """function_type : INTEGER
+                     | REAL
+                     | LOGICAL
+                     | CHARACTER"""
+    p[0] = p[1].upper()
 
 
 def p_param_list_opt_empty(p):
@@ -90,7 +87,9 @@ def p_param_list_opt_values(p):
     p[0] = p[1]
 
 
-# Corpo
+# ===========================================================================
+# Corpo (sequência de declarações e statements)
+# ===========================================================================
 
 def p_body_empty(p):
     "body : empty"
@@ -108,33 +107,21 @@ def p_body_many(p):
 
 
 def p_item(p):
-    """
-    item : declaration
-         | statement
-    """
+    """item : declaration
+            | statement"""
     p[0] = p[1]
 
 
+# ===========================================================================
 # Declarações
+# ===========================================================================
 
-def p_declaration_integer(p):
-    "declaration : INTEGER decl_item_list"
-    p[0] = ("declaration", "INTEGER", p[2])
-
-
-def p_declaration_real(p):
-    "declaration : REAL decl_item_list"
-    p[0] = ("declaration", "REAL", p[2])
-
-
-def p_declaration_logical(p):
-    "declaration : LOGICAL decl_item_list"
-    p[0] = ("declaration", "LOGICAL", p[2])
-
-
-def p_declaration_character_simple(p):
-    "declaration : CHARACTER decl_item_list"
-    p[0] = ("declaration", "CHARACTER", p[2])
+def p_declaration_simple(p):
+    """declaration : INTEGER   decl_item_list
+                   | REAL      decl_item_list
+                   | LOGICAL   decl_item_list
+                   | CHARACTER decl_item_list"""
+    p[0] = ("declaration", p[1].upper(), p[2])
 
 
 def p_declaration_character_star_len(p):
@@ -182,25 +169,37 @@ def p_id_list_many(p):
     p[0] = p[1] + [p[3]]
 
 
+# ===========================================================================
 # Statements
+# ===========================================================================
 
 def p_statement(p):
-    """
-    statement : assignment
-              | print_stmt
-              | read_stmt
-              | if_stmt
-              | do_stmt
-              | goto_stmt
-              | continue_stmt
-              | return_stmt
-              | labeled_stmt
-    """
+    """statement : assignment
+                 | print_stmt
+                 | read_stmt
+                 | if_stmt
+                 | do_stmt
+                 | goto_stmt
+                 | continue_stmt
+                 | return_stmt
+                 | labeled_stmt"""
     p[0] = p[1]
 
 
+# ---------------------------------------------------------------------------
+# CORREÇÃO PRINCIPAL: labeled_stmt usa LABEL (não INT)
+#
+# Antes: "labeled_stmt : INT statement"
+#   → ambiguidade: o parser não sabia se INT era o início de uma expressão
+#     ou um label, porque INTEGER também começa com INT no input.
+#
+# Agora: "labeled_stmt : LABEL statement"
+#   → LABEL é um token distinto emitido pelo lexer APENAS quando um inteiro
+#     aparece no início de uma linha lógica. Não há ambiguidade.
+# ---------------------------------------------------------------------------
+
 def p_labeled_stmt(p):
-    "labeled_stmt : INT statement"
+    "labeled_stmt : LABEL statement"
     p[0] = ("labeled", p[1], p[2])
 
 
@@ -221,6 +220,8 @@ def p_read_stmt(p):
 
 def p_goto_stmt(p):
     "goto_stmt : GOTO INT"
+    # GOTO usa INT (o número do label como operando) — correto,
+    # porque aqui o inteiro NÃO está no início da linha.
     p[0] = ("goto", p[2])
 
 
@@ -234,7 +235,9 @@ def p_return_stmt(p):
     p[0] = ("return",)
 
 
-# IF ... THEN ... ELSE ... ENDIF
+# ===========================================================================
+# IF ... THEN ... (ELSE ...) ENDIF
+# ===========================================================================
 
 def p_if_stmt(p):
     "if_stmt : IF '(' expr ')' THEN stmt_block ENDIF"
@@ -256,7 +259,14 @@ def p_stmt_block_many(p):
     p[0] = p[1] + [p[2]]
 
 
-# DO com label
+# ===========================================================================
+# DO com label de terminação
+#
+# Sintaxe Fortran 77: DO <label> <var> = <start>, <limit> [, <step>]
+#   O label identifica o statement de fim do loop (normalmente CONTINUE).
+#   Usa LABEL? Não — aqui o inteiro é um operando do DO, não um prefixo de
+#   linha. Usa INT, que é o token correto neste contexto.
+# ===========================================================================
 
 def p_do_stmt_no_step(p):
     "do_stmt : DO INT IDEN EQ expr ',' expr"
@@ -268,7 +278,9 @@ def p_do_stmt_with_step(p):
     p[0] = ("do", p[2], p[3], p[5], p[7], p[9])
 
 
-# Designators
+# ===========================================================================
+# Designators (variáveis, arrays, chamadas a funções)
+# ===========================================================================
 
 def p_designator_id(p):
     "designator : IDEN"
@@ -277,6 +289,8 @@ def p_designator_id(p):
 
 def p_designator_apply(p):
     "designator : IDEN '(' expr_list ')'"
+    # Pode ser acesso a array OU chamada a função — a análise semântica
+    # decide com base no tipo declarado do identificador.
     p[0] = ("apply", p[1], p[3])
 
 
@@ -290,7 +304,9 @@ def p_designator_list_many(p):
     p[0] = p[1] + [p[3]]
 
 
+# ===========================================================================
 # Listas de expressões
+# ===========================================================================
 
 def p_expr_list_one(p):
     "expr_list : expr"
@@ -302,24 +318,24 @@ def p_expr_list_many(p):
     p[0] = p[1] + [p[3]]
 
 
+# ===========================================================================
 # Expressões
+# ===========================================================================
 
 def p_expr_binop(p):
-    """
-    expr : expr ADD expr
-         | expr SUB expr
-         | expr MUL expr
-         | expr DIV expr
-         | expr POW expr
-         | expr EQEQ expr
-         | expr NE expr
-         | expr LT expr
-         | expr LE expr
-         | expr GT expr
-         | expr GE expr
-         | expr AND expr
-         | expr OR expr
-    """
+    """expr : expr ADD  expr
+            | expr SUB  expr
+            | expr MUL  expr
+            | expr DIV  expr
+            | expr POW  expr
+            | expr EQEQ expr
+            | expr NE   expr
+            | expr LT   expr
+            | expr LE   expr
+            | expr GT   expr
+            | expr GE   expr
+            | expr AND  expr
+            | expr OR   expr"""
     p[0] = ("binop", p[2], p[1], p[3])
 
 
@@ -368,7 +384,9 @@ def p_expr_designator(p):
     p[0] = p[1]
 
 
+# ===========================================================================
 # Auxiliar
+# ===========================================================================
 
 def p_empty(p):
     "empty :"
@@ -377,14 +395,28 @@ def p_empty(p):
 
 def p_error(p):
     if p:
-        print(f"Syntax error at token {p.type} ({p.value!r})")
+        print(f"Linha {p.lineno}: erro sintático no token {p.type} ({p.value!r})")
     else:
-        print("Syntax error at EOF")
+        print("Erro sintático: fim de ficheiro inesperado")
 
+
+# ===========================================================================
+# Construção do parser
+# ===========================================================================
 
 parser = yacc.yacc(start="compilation_unit")
 
 
-def parse(text):
+def parse(text: str, use_preprocess: bool = True):
+    """
+    Analisa o texto Fortran 77 e devolve a AST.
+
+    use_preprocess=True (padrão): aplica o pré-processamento de formato fixo
+    (comentários de coluna 1, continuação de linha, extração de labels).
+    use_preprocess=False: útil para testes com formato livre direto.
+    """
+    from lexer.lexer import preprocess
+    src = preprocess(text) if use_preprocess else text
     lexer.lineno = 1
-    return parser.parse(text, lexer=lexer)
+    lexer.at_line_start = True
+    return parser.parse(src, lexer=lexer)
