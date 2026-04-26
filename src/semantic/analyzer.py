@@ -1,5 +1,5 @@
-from semantic.symboltable import SymbolTable, SymbolTableError
-from semantic.typechecker import TypeChecker, TypeCheckerError
+from src.semantic.symboltable import SymbolTable, SymbolTableError
+from src.semantic.typechecker import TypeChecker, TypeCheckerError
 
 
 class SemanticAnalyzer:

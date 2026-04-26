@@ -1,6 +1,6 @@
 from pprint import pprint
-from parser.parser import parse
-from semantic.analyzer import SemanticAnalyzer
+from src.parser.parser import parse
+from src.semantic.analyzer import SemanticAnalyzer
 
 code = """
 PROGRAM FATORIAL
