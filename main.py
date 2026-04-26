@@ -8,7 +8,7 @@ INTEGER N, I, FAT
 PRINT *, 'Introduza um numero inteiro positivo:'
 READ *, N
 FAT = 2
-DO 10 I = 1, N
+DO 11 I = 1, N
 FAT = FAT * I
 10 CONTINUE
 PRINT *, 'Fatorial de ', N, ': ', FAT
