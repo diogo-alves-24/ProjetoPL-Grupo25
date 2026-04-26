@@ -42,12 +42,15 @@ tokens = [
     # lógicos
     "AND",
     "OR",
-    "NOT"
+    "NOT",
+
+
+    "LABEL",
 ] + list(reserved.values())
 
 literals = [
     '(',
     ')',
     ',',
-    ':'
+    ':',
 ]
