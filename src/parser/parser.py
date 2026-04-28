@@ -1,7 +1,7 @@
 import ply.yacc as yacc
 
-from src.lexer.tokens import tokens
-from src.lexer.lexer import lexer, preprocess
+from lexer.lexer import tokens
+from lexer.lexer import lexer, preprocess
 
 
 # ===========================================================================
@@ -415,7 +415,7 @@ def parse(text: str, use_preprocess: bool = True):
     (comentários de coluna 1, continuação de linha, extração de labels).
     use_preprocess=False: útil para testes com formato livre direto.
     """
-    from src.lexer.lexer import preprocess
+    from lexer.lexer import preprocess
     src = preprocess(text) if use_preprocess else text
     lexer.lineno = 1
     lexer.at_line_start = True
