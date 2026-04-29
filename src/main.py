@@ -1,16 +1,20 @@
 from pprint import pprint
 from parser.parser import parse
 from semantic.analyzer import SemanticAnalyzer
+from code.generator import generate_code
 
 code = """
 PROGRAM FATORIAL
 INTEGER N, I, FAT
+
 PRINT *, 'Introduza um numero inteiro positivo:'
 READ *, N
-FAT = 2
-DO 11 I = 1, N
+
+FAT = 1
+DO 10 I = 1, N
 FAT = FAT * I
 10 CONTINUE
+
 PRINT *, 'Fatorial de ', N, ': ', FAT
 END
 """
@@ -26,3 +30,5 @@ pprint(annotated_ast, width=120)
 print("\n=== ERROS ===")
 for err in errors:
     print("-", err)
+
+generate_code(annotated_ast)
