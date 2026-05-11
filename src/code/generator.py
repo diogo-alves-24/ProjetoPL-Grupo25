@@ -513,6 +513,8 @@ class CodeGenerator:
             return ["PUSHI 0"] + code + ["SUB"]
         if op == "+":
             return code
+        if op in (".NOT.", "NOT"):
+            return code + ["NOT"]
         raise NotImplementedError(f"[codegen] Unsupported unary op: {op!r}")
 
     # ── relational operators ─────────────────────────────────────────────
@@ -578,11 +580,11 @@ class CodeGenerator:
                 for var_node in stmt[2]:
                     if var_node[0] == "var":
                         # não re-registar parâmetros já registados
-                        if var_node[1].lower() not in self._sym._vars:
+                        if var_node[1] not in self._sym._vars:
                             self._sym.register(var_node[1], var_type, size=1)
                         else:
                             # actualiza o tipo do parâmetro
-                            self._sym._vars[var_node[1].lower()]["type"] = var_type
+                            self._sym._vars[var_node[1]]["type"] = var_type
                     elif var_node[0] == "array_decl":
                         size = 1
                         for dim in var_node[2]:

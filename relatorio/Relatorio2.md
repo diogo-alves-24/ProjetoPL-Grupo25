@@ -82,6 +82,99 @@ Uma decisão relevante no parser foi representar uniformemente construções da 
 
 Para as produções recursivas, em particular listas de identificadores, listas de expressões e listas de subprogramas, foi frequentemente utilizada recursividade à esquerda. Esta escolha é natural em parsers do tipo LALR e permite construir listas de forma eficiente, sem aumentar desnecessariamente a complexidade do autómato sintático.
 
+A gramática implementada pode ser descrita formalmente da seguinte forma:
+
+```bnf
+compilation_unit ::= main_program subprogram_list_opt
+
+main_program ::= PROGRAM IDEN body END
+               | PROGRAM IDEN END
+
+subprogram_list_opt ::= ε
+                       | subprogram_list
+
+subprogram_list ::= subprogram
+                  | subprogram_list subprogram
+
+subprogram ::= function_definition
+
+function_definition ::= function_type FUNCTION IDEN '(' param_list_opt ')' body END
+                       | function_type FUNCTION IDEN '(' param_list_opt ')' END
+
+function_type ::= INTEGER | REAL | LOGICAL | CHARACTER
+
+param_list_opt ::= ε | id_list
+
+id_list ::= IDEN | id_list ',' IDEN
+
+body ::= item | body item
+
+item ::= declaration | statement
+
+declaration ::= INTEGER decl_item_list
+              | REAL decl_item_list
+              | LOGICAL decl_item_list
+              | CHARACTER decl_item_list
+              | CHARACTER '*' INT decl_item_list
+
+decl_item_list ::= decl_item | decl_item_list ',' decl_item
+
+decl_item ::= IDEN | IDEN '(' int_list ')'
+
+int_list ::= INT | int_list ',' INT
+
+statement ::= assignment
+            | print_stmt
+            | read_stmt
+            | if_stmt
+            | do_stmt
+            | goto_stmt
+            | continue_stmt
+            | return_stmt
+            | labeled_stmt
+
+assignment ::= designator '=' expr
+
+print_stmt ::= PRINT '*' ',' expr_list
+
+read_stmt  ::= READ '*' ',' designator_list
+
+if_stmt ::= IF '(' expr ')' THEN stmt_block ENDIF
+          | IF '(' expr ')' THEN stmt_block ELSE stmt_block ENDIF
+
+stmt_block ::= statement | stmt_block statement
+
+do_stmt ::= DO INT IDEN '=' expr ',' expr
+          | DO INT IDEN '=' expr ',' expr ',' expr
+
+goto_stmt    ::= GOTO INT
+
+continue_stmt ::= CONTINUE
+
+return_stmt  ::= RETURN
+
+labeled_stmt ::= LABEL statement
+
+designator ::= IDEN | IDEN '(' expr_list ')'
+
+designator_list ::= designator | designator_list ',' designator
+
+expr_list ::= expr | expr_list ',' expr
+
+expr ::= expr '+' expr | expr '-' expr
+       | expr '*' expr | expr '/' expr
+       | expr '**' expr
+       | expr .EQ. expr | expr .NE. expr
+       | expr .LT. expr | expr .LE. expr
+       | expr .GT. expr | expr .GE. expr
+       | expr .AND. expr | expr .OR. expr
+       | .NOT. expr
+       | '-' expr | '+' expr
+       | '(' expr ')'
+       | INT | FLOAT | STRING | BOOL
+       | designator
+```
+
 Um exemplo simples desta estratégia é a definição de listas separadas por vírgulas, usada em vários pontos da gramática, como nas listas de argumentos e nas declarações múltiplas:
 
 ```python
