@@ -35,6 +35,11 @@ def p_main_program(p):
     p[0] = ("program", p[2], p[3])
 
 
+def p_main_program_empty(p):
+    "main_program : PROGRAM IDEN END"
+    p[0] = ("program", p[2], [])
+
+
 def p_subprogram_list_opt_empty(p):
     "subprogram_list_opt : empty"
     p[0] = []
@@ -69,6 +74,11 @@ def p_function_definition(p):
     p[0] = ("function", p[1], p[3], p[5], p[7])
 
 
+def p_function_definition_empty(p):
+    "function_definition : function_type FUNCTION IDEN '(' param_list_opt ')' END"
+    p[0] = ("function", p[1], p[3], p[5], [])
+
+
 def p_function_type(p):
     """function_type : INTEGER
                      | REAL
@@ -90,11 +100,6 @@ def p_param_list_opt_values(p):
 # ===========================================================================
 # Corpo (sequência de declarações e statements)
 # ===========================================================================
-
-def p_body_empty(p):
-    "body : empty"
-    p[0] = []
-
 
 def p_body_one(p):
     "body : item"
@@ -323,20 +328,26 @@ def p_expr_list_many(p):
 # ===========================================================================
 
 def p_expr_binop(p):
-    """expr : expr ADD  expr
-            | expr SUB  expr
-            | expr MUL  expr
-            | expr DIV  expr
-            | expr POW  expr
-            | expr EQEQ expr
+    """expr : expr ADD expr
+            | expr SUB expr
+            | expr MUL expr
+            | expr DIV expr
+            | expr POW expr"""
+    p[0] = ("binop", p[2], p[1], p[3])
+
+def p_expr_relop(p):
+    """expr : expr EQEQ expr
             | expr NE   expr
             | expr LT   expr
             | expr LE   expr
             | expr GT   expr
-            | expr GE   expr
-            | expr AND  expr
-            | expr OR   expr"""
-    p[0] = ("binop", p[2], p[1], p[3])
+            | expr GE   expr"""
+    p[0] = ("relop", p[2], p[1], p[3])
+
+def p_expr_logop(p):
+    """expr : expr AND expr
+            | expr OR  expr"""
+    p[0] = ("logop", p[2], p[1], p[3])
 
 
 def p_expr_not(p):

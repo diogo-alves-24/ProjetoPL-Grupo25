@@ -19,7 +19,9 @@ Ao longo do desenvolvimento do projeto, foi dada particular atenção à modular
 - declarações de variáveis;
 - expressões aritméticas, lógicas e relacionais;
 - instruções de controlo de fluxo;
-- operações básicas de entrada e saída.
+- operações básicas de entrada e saída;
+- arrays unidimensionais;
+- definição e chamada de funções.
 
 ## Arquitetura e Utilização do Compilador
 
@@ -54,13 +56,15 @@ Uma das principais preocupações nesta fase foi garantir o reconhecimento corre
 
 Os literais numéricos foram divididos em inteiros e reais. Sempre que um inteiro é reconhecido, o respetivo valor é convertido para `int`; no caso dos reais, o valor é convertido para `float`. Também os literais de texto são processados no momento da análise léxica, removendo-se as aspas exteriores para preservar apenas o conteúdo da cadeia de caracteres.
 
-Como Fortran 77 é uma linguagem case-insensitive, o analisador foi construído de forma a aceitar diferentes combinações de maiúsculas e minúsculas nos identificadores e palavras reservadas. Os operadores relacionais e lógicos, como .EQ. ou .TRUE., seguem a convenção uppercase típica de Fortran 77. Esta opção é especialmente relevante no reconhecimento de palavras reservadas e dos operadores lógicos e relacionais. No caso dos identificadores e palavras reservadas, a estratégia adotada consistiu em reconhecer primeiro uma sequência alfanumérica geral e, de seguida, verificar se o lexema corresponde a alguma palavra reservada através de uma tabela `reserved`.
+Como Fortran 77 é uma linguagem case-insensitive, o analisador foi construído de forma a aceitar diferentes combinações de maiúsculas e minúsculas nos identificadores e palavras reservadas. Os operadores relacionais e lógicos, como `.EQ.` ou `.TRUE.`, seguem a convenção uppercase típica de Fortran 77. Esta opção é especialmente relevante no reconhecimento de palavras reservadas e dos operadores lógicos e relacionais. No caso dos identificadores e palavras reservadas, a estratégia adotada consistiu em reconhecer primeiro uma sequência alfanumérica geral e, de seguida, verificar se o lexema corresponde a alguma palavra reservada através de uma tabela `reserved`.
 
 Outro aspeto relevante foi o tratamento do formato tradicional de Fortran 77. Para acomodar características do formato fixo, foi introduzida uma etapa de pré-processamento antes da tokenização. Essa etapa trata situações como comentários em coluna 1, continuação de linha e identificação de labels no início da linha lógica. Assim, o lexer recebe uma versão já normalizada do programa, o que torna a tokenização mais simples.
 
 Uma dificuldade particular consistiu em distinguir inteiros normais de labels. Em Fortran 77, um número no início de uma linha lógica pode representar um label, como em `10 CONTINUE` ou `20 IF (...) THEN`. Para resolver este problema, o pré-processamento assinala esse contexto e o lexer produz um token específico para labels, evitando confusão com constantes inteiras usadas em expressões.
 
 Por fim, foi também implementado um mecanismo de tratamento de erros léxicos. Sempre que um símbolo inválido é encontrado, o lexer emite uma mensagem de erro e avança um caracter, permitindo continuar a análise do restante programa em vez de interromper imediatamente a compilação.
+
+Durante o desenvolvimento, a gramática original continha 26 conflitos shift/reduce detetados pelo PLY. A causa era a regra `body : empty`, que criava dois caminhos equivalentes para parsear o primeiro item de qualquer corpo não vazio. A correção consistiu em três mudanças: remover a regra `body : empty` e tratar explicitamente os casos de corpo vazio com duas produções novas — `main_program : PROGRAM IDEN END` para programas sem corpo e `function_definition : function_type FUNCTION IDEN '(' param_list_opt ')' END` para funções sem corpo. Estas duas produções garantem que o parser consegue distinguir um corpo vazio de um corpo não vazio com um único token de lookahead, eliminando a ambiguidade sem alterar o comportamento semântico da gramática. Após esta correção, o parser gera tabelas LALR sem qualquer conflito.
 
 ## Análise Sintática
 
@@ -89,3 +93,81 @@ def p_expr_list_many(p):
     "expr_list : expr_list ',' expr"
     p[0] = p[1] + [p[3]]
 ```
+
+## Análise Semântica
+
+A análise semântica constitui a terceira fase do compilador, sendo responsável por verificar a correção do programa para além da sua estrutura sintática. Esta fase percorre a AST produzida pelo parser e produz uma AST anotada, onde cada nó passa a conter informação de tipos e de resolução de identificadores, utilizada posteriormente na geração de código.
+
+A gestão de identificadores é feita através de uma tabela de símbolos com suporte a múltiplos scopes. Cada vez que se entra num novo bloco, programa principal ou função, é criado um scope novo, que é removido no final desse bloco. Esta organização permite que variáveis locais a uma função não sejam visíveis fora dela, e que seja possível ter variáveis com o mesmo nome em funções diferentes. O scope global contém apenas os builtins da linguagem, nomeadamente a função `MOD`.
+
+A verificação de tipos é tratada por um módulo dedicado, o `TypeChecker`, que define as regras de compatibilidade de tipos para operações aritméticas, relacionais e lógicas. Em operações aritméticas, o resultado é `REAL` sempre que pelo menos um dos operandos for `REAL`, e `INTEGER` quando ambos forem inteiros, incluindo a divisão, onde `INTEGER/INTEGER` produz um resultado inteiro, conforme o standard de Fortran 77. As operações relacionais produzem sempre um resultado do tipo `LOGICAL`.
+
+Uma das decisões mais relevantes desta fase foi a resolução da forma sintática `IDEN(...)`, que tanto pode representar um acesso a array como uma chamada a função. Essa distinção é feita com recurso à tabela de símbolos: se o identificador estiver declarado como array, o nó é anotado com `resolved_as: "array"` e as expressões entre parênteses são tratadas como índices; caso contrário, é tratado como uma chamada a função e as expressões são tratadas como argumentos. Esta resolução permite que as fases seguintes tratem os dois casos de forma distinta sem necessidade de análise adicional.
+
+Foi também implementada a verificação de labels utilizados em instruções `DO` e `GOTO`. O analisador regista todos os labels definidos e todos os labels referenciados, verificando no final que não existem labels usados mas não definidos, nem labels de `DO` sem o respetivo statement de terminação.
+
+Uma dificuldade encontrada nesta fase foi o tratamento de parâmetros de funções. Em Fortran 77, os parâmetros são declarados dentro do corpo da função com o seu tipo, e não na assinatura. Isto implica que, quando se entra no scope da função, os parâmetros são registados inicialmente sem tipo, sendo este atribuído posteriormente quando a declaração correspondente é encontrada.
+
+## Geração de Código
+
+A geração de código constitui a fase final do compilador, sendo responsável por traduzir a AST anotada produzida pela análise semântica em instruções para a máquina virtual EWVM. O gerador percorre a AST de forma recursiva através de um método dispatcher central, `_gen`, que identifica o tag de cada nó e delega para o método especializado correspondente.
+
+As variáveis são geridas através de uma tabela interna ao gerador, `_GenSymbols`, que associa cada variável a um índice na stack global da EWVM. No início da geração de cada programa, é feito um primeiro passo pela lista de declarações para registar todas as variáveis e calcular os seus índices. Para variáveis simples é alocado um slot com `PUSHI 0`. Para arrays, é alocado 1 slot para guardar o endereço heap, inicializado posteriormente com `ALLOCN`.
+
+Arrays unidimensionais são alocados no heap da EWVM usando a instrução `ALLOCN`, que recebe o tamanho e devolve um endereço. Esse endereço é guardado num slot da stack global. Para aceder a um elemento `NUMS(I)`, o gerador empurra o endereço base do array, calcula o offset `I - 1` com `PADD`, e usa `LOAD 0` para leitura ou `STORE 0` para escrita. O `-1` deve-se ao facto de Fortran indexar a partir de 1.
+
+Para as instruções de controlo de fluxo, a geração baseia-se na criação de labels internos da VM. No caso do `IF` sem `ELSE`, é gerado um label de fim e uma instrução `JZ` que salta para esse label se a condição for falsa. No caso do `IF` com `ELSE`, são gerados dois labels, um para o início do bloco `ELSE` e outro para o fim do `ENDIF`, com um `JUMP` incondicional a separar os dois blocos. Para o `GOTO`, é emitida uma instrução `JUMP` para o label VM correspondente ao label Fortran, que é sempre emitido pelo gerador quando encontra um statement etiquetado.
+
+Os ciclos `DO` são gerados em duas partes. O cabeçalho do ciclo inicializa a variável de controlo, emite o label de início, avalia a condição de paragem e emite um `JZ` para o label de fim. O fecho do ciclo, incremento da variável, salto para o início e emissão do label de fim, é emitido quando o gerador encontra o statement etiquetado com o label de terminação do `DO`, registado previamente numa pilha de loops ativos.
+
+As funções definidas pelo utilizador são compiladas como blocos de código independentes, precedidos por um label com o nome da função. O programa principal começa sempre com `JUMP MAIN` para saltar por cima dos corpos das funções. Dentro de uma função, as variáveis locais são acedidas com `PUSHL`/`STOREL` em vez de `PUSHG`/`STOREG`, usando o frame pointer. Os parâmetros são passados antes do `PUSHA` e acedidos com índices negativos (`PUSHL -1`, `PUSHL -2`, etc.). O valor de retorno é empurrado para a stack antes do `RETURN`, através da variável com o mesmo nome da função.
+
+Uma dificuldade significativa nesta fase foi a coordenação entre os statements etiquetados e o fecho dos ciclos `DO`. Em Fortran 77, o label de terminação de um `DO` aparece num statement separado que pode estar vários níveis abaixo na AST, tornando necessário manter uma pilha de loops ativos para saber quais os loops a fechar quando um label é encontrado.
+
+## Limitações e Trabalho Futuro
+
+O compilador implementado cobre os principais mecanismos pedidos pelo enunciado, mas apresenta algumas limitações que ficam identificadas para trabalho futuro.
+
+A construção `SUBROUTINE` não foi implementada. Ao contrário das funções, as subrotinas não devolvem um valor e são invocadas com a instrução `CALL`, o que implicaria suporte adicional no lexer, no parser, na análise semântica e na geração de código.
+
+Arrays unidimensionais são suportados com alocação no heap usando `ALLOCN`, permitindo acesso dinâmico por índice. Arrays multidimensionais não foram testados e podem requerer extensão ao método de cálculo de endereço para considerar múltiplos índices e dimensões.
+
+## Como Correr o Compilador
+
+### Dependências
+
+- Python 3.10 ou superior
+- Biblioteca `ply`:
+
+```bash
+pip install ply
+```
+
+### Estrutura do projeto
+
+```text
+ProjetoPL-Grupo25/
+├── src/                  # código fonte do compilador
+├── tests/                # ficheiros .f (source) e .evm (output)
+├── relatorio/            # relatório técnico
+├── tester.py             # script de teste dos 5 exemplos
+└── Makefile              # atalho para correr o tester
+```
+
+### Correr os testes
+
+```bash
+make
+```
+
+Ou diretamente:
+
+```bash
+python tester.py
+```
+
+O script lê cada ficheiro `.f` em `tests/`, compila-o e guarda o código EWVM no ficheiro `.evm` correspondente.
+
+### Testar na máquina virtual
+
+O código gerado nos ficheiros `.evm` pode ser testado em [https://ewvm.epl.di.uminho.pt/](https://ewvm.epl.di.uminho.pt/) — basta colar o conteúdo do ficheiro na interface web.

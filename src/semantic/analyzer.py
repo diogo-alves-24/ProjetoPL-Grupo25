@@ -157,6 +157,15 @@ class SemanticAnalyzer:
 
         if tag == "var":
             _, name = item
+
+            # se já existe como callable no scope global, ignorar a declaração
+            try:
+                callable_entry, _ = self.symbols.query_callable(name, error=False)
+            except SymbolTableError:
+                callable_entry = None
+            if callable_entry is not None:
+                return ("var", name, {"type": callable_entry["return_type"], "kind": "callable"})
+
             current_scope = self.symbols.scopes[-1]
             key = name.lower()
 
@@ -303,7 +312,7 @@ class SemanticAnalyzer:
     def visit_expr(self, node):
         tag = node[0]
 
-        if tag in ("int", "float", "string", "bool", "id", "apply", "binop", "unaryop"):
+        if tag in ("int", "float", "string", "bool", "id", "apply", "binop", "relop", "logop", "unaryop"):
             method = getattr(self, f"visit_{tag}")
             return method(node)
 
@@ -348,7 +357,10 @@ class SemanticAnalyzer:
             arg_types.append(arg_type)
 
         # 1) array
-        var_entry, _ = self.symbols.query_variable(name, error=False)
+        try:
+            var_entry, _ = self.symbols.query_variable(name, error=False)
+        except SymbolTableError:
+            var_entry = None
         if var_entry is not None and var_entry["kind"] == "array":
             expected = len(var_entry["dims"])
             got = len(args)
@@ -414,6 +426,39 @@ class SemanticAnalyzer:
                 ann_right,
                 {"type": None, "left_type": left_type, "right_type": right_type}
             ), None
+        
+    def visit_relop(self, node):
+        _, op, left, right = node
+
+        ann_left, left_type = self.visit_expr(left)
+        ann_right, right_type = self.visit_expr(right)
+
+        if left_type is None or right_type is None:
+            return ("relop", op, ann_left, ann_right, {"type": "LOGICAL"}), "LOGICAL"
+
+        if not (self._is_numeric(left_type) and self._is_numeric(right_type)) and left_type != right_type:
+            self.error(f"Invalid types for relational operator '{op}': {left_type} and {right_type}")
+
+        return (
+            "relop", op, ann_left, ann_right,
+            {"type": "LOGICAL", "left_type": left_type, "right_type": right_type}
+        ), "LOGICAL"
+    
+    def visit_logop(self, node):
+        _, op, left, right = node
+
+        ann_left, left_type = self.visit_expr(left)
+        ann_right, right_type = self.visit_expr(right)
+
+        if left_type is not None and left_type != "LOGICAL":
+            self.error(f"Left operand of '{op}' must be LOGICAL, got {left_type}")
+        if right_type is not None and right_type != "LOGICAL":
+            self.error(f"Right operand of '{op}' must be LOGICAL, got {right_type}")
+
+        return (
+            "logop", op, ann_left, ann_right,
+            {"type": "LOGICAL", "left_type": left_type, "right_type": right_type}
+        ), "LOGICAL"
 
     def visit_unaryop(self, node):
         _, op, expr = node

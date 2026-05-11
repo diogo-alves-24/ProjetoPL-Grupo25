@@ -16,15 +16,22 @@ class _GenSymbols:
         self._label_counter: int = 0
         self._do_stack: list = []
 
+    def num_slots(self) -> int:
+        return sum(v["size"] for v in self._vars.values())
+
     # ── variable registration ────────────────────────────────────────────
 
-    def register(self, name: str, var_type: str) -> None:
-        """Register a variable (idempotent – second call is ignored)."""
+    def register(self, name: str, var_type: str, size: int = 1, is_array: bool = False, array_size: int = 0) -> None:
         if name not in self._vars:
+            base = sum(v["size"] for v in self._vars.values())
             self._vars[name] = {
-                "index": len(self._vars),
-                "type":  var_type,
+                "index":      base,
+                "type":       var_type,
+                "size":       size,
+                "is_array":   is_array,
+                "array_size": array_size,
             }
+
 
     def lookup(self, name: str) -> dict:
         if name not in self._vars:
@@ -107,6 +114,15 @@ class CodeGenerator:
 
     def __init__(self):
         self._sym: _GenSymbols = _GenSymbols()
+        self._in_function: bool = False
+        self._local_sym: _GenSymbols = None
+        self._return_var: str = None
+
+    def _push_var(self, idx: int) -> str:
+        return f"PUSHL {idx}" if self._in_function else f"PUSHG {idx}"
+
+    def _store_var(self, idx: int) -> str:
+        return f"STOREL {idx}" if self._in_function else f"STOREG {idx}"
 
     # ── public entry point ───────────────────────────────────────────────
 
@@ -135,8 +151,13 @@ class CodeGenerator:
 
         # ── top-level wrappers ───────────────────────────────────────────
         if tag == "file":
-            # ('file', program_node, extra)
-            return self._gen(node[1])
+            func_code = []
+            for func in node[2]:
+                func_code += self._gen_function(func)
+            main_code = self._gen(node[1])
+            if func_code:
+                return ["JUMP MAIN"] + func_code + ["MAIN:"] + main_code
+            return main_code
 
         if tag == "program":
             # ('program', name, stmts)  OR  ('program', name, stmts, ann)
@@ -161,12 +182,9 @@ class CodeGenerator:
             return self._gen_read(node[1])
 
         if tag == "if":
-            # ('if', cond_label, cond, then_stmts, ann)
-            return self._gen_if(node[2], node[3])
-
-        if tag == "if_else":
-            # ('if_else', cond_label, cond, then_stmts, else_stmts, ann)
-            return self._gen_if_else(node[2], node[3], node[4])
+            if node[3]:
+                return self._gen_if_else(node[1], node[2], node[3])
+            return self._gen_if(node[1], node[2])
 
         if tag == "do":
             # ('do', end_label_num, var_name, start, stop, step, ann)
@@ -185,17 +203,28 @@ class CodeGenerator:
         if tag == "continue":
             return []  # no-op in EWVM
 
+        if tag == "goto":
+            return [f"JUMP L{node[1]}"]
+        
+        if tag == "return":
+            if self._in_function and self._return_var is not None:
+                return self._gen_load(self._return_var) + ["RETURN"]
+            return ["RETURN"]
+
         # ── expressions ─────────────────────────────────────────────────
         if tag == "int":
             return [f"PUSHI {node[1]}"]
 
-        if tag == "real":
+        if tag == "float":
             return [f"PUSHF {node[1]}"]
 
         if tag == "string":
             # node[1] is the string content (without surrounding quotes)
             escaped = str(node[1]).replace('"', '\\"')
             return [f'PUSHS "{escaped}"']
+        
+        if tag == "bool":
+            return [f"PUSHI {1 if node[1] else 0}"]
 
         if tag in ("id", "var"):
             return self._gen_load(node[1])
@@ -218,6 +247,21 @@ class CodeGenerator:
 
         if tag == "not":
             return self._gen(node[1]) + ["NOT"]
+        
+        if tag == "apply":
+            ann = node[3] if len(node) > 3 and isinstance(node[3], dict) else {}
+            if ann.get("resolved_as") == "array":
+                return self._gen_array_access(node[1], node[2])
+            if ann.get("resolved_as") == "function":
+                name = node[1].upper()
+                args = node[2]
+                code = []
+                for arg in args:
+                    code += self._gen(arg)
+                if name == "MOD":
+                    return code + ["MOD"]
+                return code + [f"PUSHA {name}", "CALL"]
+            return []
 
         # Unknown node — skip silently
         return []
@@ -225,25 +269,40 @@ class CodeGenerator:
     # ── program ──────────────────────────────────────────────────────────
 
     def _gen_program(self, name: str, stmts: list) -> list[str]:
-        # First pass: register every declared variable so indices are stable
+        # primeiro passe — regista variáveis e arrays
         for stmt in stmts:
             if isinstance(stmt, tuple) and stmt[0] == "declaration":
                 var_type = stmt[1]
                 for var_node in stmt[2]:
-                    var_name = var_node[1]   # ('var', NAME, ann)
-                    self._sym.register(var_name, var_type)
+                    if var_node[0] == "var":
+                        self._sym.register(var_node[1], var_type, size=1)
+                    elif var_node[0] == "array_decl":
+                        array_size = 1
+                        for dim in var_node[2]:
+                            array_size *= dim
+                        self._sym.register(var_node[1], var_type, size=1, is_array=True, array_size=array_size)
 
-        # Allocate one stack slot per variable
-        alloc = ["PUSHI 0"] * self._sym.num_vars()
+        # aloca slots para variáveis simples
+        alloc = []
+        for v in self._sym._vars.values():
+            if not v.get("is_array"):
+                alloc += ["PUSHI 0"] * v["size"]
+            else:
+                alloc += ["PUSHI 0"]  # reserva o slot para o endereço heap
+        # inicializa arrays no heap
+        array_init = []
+        for vname, vinfo in self._sym.all_vars():
+            if vinfo.get("is_array"):
+                array_init += [f"PUSHI {vinfo['array_size']}", "ALLOCN", f"STOREG {vinfo['index']}"]
 
-        # Second pass: generate code for all non-declaration statements
+        # segundo passe — gera código
         body = []
         for stmt in stmts:
             if isinstance(stmt, tuple) and stmt[0] == "declaration":
                 continue
             body += self._gen(stmt)
 
-        return alloc + body + ["STOP"]
+        return alloc + array_init + body + ["STOP"]
 
     # ── declaration (no-op at emission time) ─────────────────────────────
 
@@ -254,20 +313,31 @@ class CodeGenerator:
     # ── assignment ───────────────────────────────────────────────────────
 
     def _gen_assignment(self, target, value) -> list[str]:
-        name  = target[1]
-        info  = self._sym.lookup(name)
-        idx   = info["index"]
-        ttype = info["type"]
+        ttype    = target[-1]["type"] if isinstance(target[-1], dict) else "INTEGER"
+        val_type = self._expr_type(value)
 
-        code      = self._gen(value)
-        val_type  = self._expr_type(value)
-
+        # conversão de tipo do valor
+        val_code = self._gen(value)
         if ttype == "REAL" and val_type == "INTEGER":
-            code += ["ITOF"]
+            val_code += ["ITOF"]
         elif ttype == "INTEGER" and val_type == "REAL":
-            code += ["FTOI"]
+            val_code += ["FTOI"]
 
-        return code + [f"STOREG {idx}"]
+        # destino é variável simples
+        if target[0] == "id":
+            idx = self._sym.lookup(target[1])["index"]
+            return val_code + [self._store_var(idx)]
+
+        # destino é elemento de array
+        if target[0] == "apply":
+            name = target[1]
+            base = self._sym.lookup(name)["index"]
+            addr_code  = [self._push_var(base)]
+            addr_code += self._gen(target[2][0])
+            addr_code += ["PUSHI 1", "SUB", "PADD"]
+            return addr_code + val_code + ["STORE 0"]
+
+        return val_code
 
     # ── PRINT ────────────────────────────────────────────────────────────
 
@@ -290,13 +360,28 @@ class CodeGenerator:
     def _gen_read(self, targets: list) -> list[str]:
         code = []
         for target in targets:
-            name  = target[1]
-            info  = self._sym.lookup(name)
-            idx   = info["index"]
-            ttype = info["type"]
-            code += ["READ"]
-            code += ["ATOF"] if ttype == "REAL" else ["ATOI"]
-            code += [f"STOREG {idx}"]
+            if target[0] == "apply":
+                name  = target[1]
+                info  = self._sym.lookup(name)
+                ttype = info["type"]
+                idx   = info["index"]
+                # calcula endereço primeiro
+                code += [self._push_var(idx)]
+                code += self._gen(target[2][0])
+                code += ["PUSHI 1", "SUB", "PADD"]
+                # lê o valor
+                code += ["READ"]
+                code += ["ATOF"] if ttype == "REAL" else ["ATOI"]
+                # escreve no endereço
+                code += ["STORE 0"]
+            else:
+                name  = target[1]
+                info  = self._sym.lookup(name)
+                idx   = info["index"]
+                ttype = info["type"]
+                code += ["READ"]
+                code += ["ATOF"] if ttype == "REAL" else ["ATOI"]
+                code += [self._store_var(idx)]
         return code
 
     # ── IF ───────────────────────────────────────────────────────────────
@@ -321,6 +406,16 @@ class CodeGenerator:
         code    += self._gen(else_body)
         code    += [f"{end_lbl}:"]
         return code
+    
+    def _gen_array_access(self, name: str, index_args: list) -> list[str]:
+        info = self._sym.lookup(name)
+        base = info["index"]
+        code  = [self._push_var(base)]   # endereço base do array
+        code += self._gen(index_args[0]) # índice I
+        code += ["PUSHI 1", "SUB"]       # I - 1
+        code += ["PADD"]                 # endereço do elemento
+        code += ["LOAD 0"]               # lê o valor
+        return code
 
     # ── DO loop header ───────────────────────────────────────────────────
 
@@ -328,15 +423,15 @@ class CodeGenerator:
                        start_expr, stop_expr, step_expr) -> list[str]:
         info      = self._sym.lookup(var_name)
         idx       = info["index"]
-        start_lbl = self._sym.new_label("DO_START")
-        end_lbl   = self._sym.new_label("DO_END")
+        start_lbl = self._sym.new_label("DOSTART")
+        end_lbl   = self._sym.new_label("DOEND")
 
         # Initialise loop variable
-        code  = self._gen(start_expr) + [f"STOREG {idx}"]
+        code  = self._gen(start_expr) + [self._store_var(idx)]
         code += [f"{start_lbl}:"]
 
         # Loop condition: var <= stop  (or var >= stop for negative step)
-        code += [f"PUSHG {idx}"]
+        code += [self._push_var(idx)]
         code += self._gen(stop_expr)
         step_val = self._static_int(step_expr)
         code += ["SUPEQ"] if (step_val is not None and step_val < 0) else ["INFEQ"]
@@ -355,15 +450,14 @@ class CodeGenerator:
         return code
 
     # ── labeled statement (may close a DO) ───────────────────────────────
-
+    
     def _gen_labeled(self, label_num: int, inner_stmt) -> list[str]:
         inner_code = self._gen(inner_stmt)
         do_info    = self._sym.find_do_by_label(label_num)
 
         if do_info is None:
-            return inner_code
+            return [f"L{label_num}:"] + inner_code
 
-        # Close every DO loop up to and including this one
         tail = []
         while self._sym.has_do():
             di    = self._sym.pop_do()
@@ -372,17 +466,19 @@ class CodeGenerator:
             if di is do_info:
                 break
 
-        return inner_code + tail
+        return [f"L{label_num}:"] + inner_code + tail
+    
 
     def _gen_do_step(self, do_info: dict) -> list[str]:
         idx  = do_info["var_index"]
         step = do_info["step_expr"]
-        return [f"PUSHG {idx}"] + self._gen(step) + ["ADD", f"STOREG {idx}"]
+        return [self._push_var(idx)] + self._gen(step) + ["ADD", self._store_var(idx)]
 
     # ── variable load ────────────────────────────────────────────────────
 
     def _gen_load(self, name: str) -> list[str]:
-        return [f"PUSHG {self._sym.lookup(name)['index']}"]
+        idx = self._sym.lookup(name)["index"]
+        return [self._push_var(idx)]
 
     # ── binary arithmetic ────────────────────────────────────────────────
 
@@ -450,6 +546,68 @@ class CodeGenerator:
         if op_upper in (".OR.", "OR"):
             return code + ["OR"]
         raise NotImplementedError(f"[codegen] Unsupported logical op: {op!r}")
+    
+    #nova função
+    def _gen_function(self, node) -> list[str]:
+        _, return_type, name, params, body = node
+
+        # guarda contexto global
+        old_sym        = self._sym
+        old_in_func    = self._in_function
+        old_return_var = self._return_var
+
+        # entra no contexto local
+        self._local_sym   = _GenSymbols()
+        self._sym         = self._local_sym
+        self._in_function = True
+        self._return_var  = name
+        self._sym.register(name, return_type, size=1)
+
+        # registar parâmetros com índices negativos
+        for i, param in enumerate(reversed(params)):
+            self._sym._vars[param] = {
+                "index": -(i + 1),
+                "type":  None,
+                "size":  1,
+            }
+
+        # primeiro passe — regista variáveis declaradas
+        for stmt in body:
+            if isinstance(stmt, tuple) and stmt[0] == "declaration":
+                var_type = stmt[1]
+                for var_node in stmt[2]:
+                    if var_node[0] == "var":
+                        # não re-registar parâmetros já registados
+                        if var_node[1].lower() not in self._sym._vars:
+                            self._sym.register(var_node[1], var_type, size=1)
+                        else:
+                            # actualiza o tipo do parâmetro
+                            self._sym._vars[var_node[1].lower()]["type"] = var_type
+                    elif var_node[0] == "array_decl":
+                        size = 1
+                        for dim in var_node[2]:
+                            size *= dim
+                        self._sym.register(var_node[1], var_type, size=size)
+
+        # aloca slots locais (só variáveis com índice >= 0)
+        num_local = sum(
+            v["size"] for v in self._sym._vars.values() if v["index"] >= 0
+        )
+        alloc = ["PUSHI 0"] * num_local
+
+        # gera o corpo
+        body_code = []
+        for stmt in body:
+            if isinstance(stmt, tuple) and stmt[0] == "declaration":
+                continue
+            body_code += self._gen(stmt)
+
+        # restaura contexto global
+        self._sym         = old_sym
+        self._in_function = old_in_func
+        self._return_var  = old_return_var
+
+        return [f"{name}:"] + alloc + body_code
 
     # ── helpers ──────────────────────────────────────────────────────────
 

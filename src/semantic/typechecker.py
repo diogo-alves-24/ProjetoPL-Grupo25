@@ -41,7 +41,7 @@ class TypeChecker:
 
         if operator == "/":
             if left_type in ("INTEGER", "REAL") and right_type in ("INTEGER", "REAL"):
-                return "REAL"
+                return "REAL" if "REAL" in (left_type, right_type) else "INTEGER"
 
         if operator == "**":
             if left_type in ("INTEGER", "REAL") and right_type in ("INTEGER", "REAL"):
