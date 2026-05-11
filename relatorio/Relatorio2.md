@@ -56,7 +56,7 @@ Uma das principais preocupações nesta fase foi garantir o reconhecimento corre
 
 Os literais numéricos foram divididos em inteiros e reais. Sempre que um inteiro é reconhecido, o respetivo valor é convertido para `int`; no caso dos reais, o valor é convertido para `float`. Também os literais de texto são processados no momento da análise léxica, removendo-se as aspas exteriores para preservar apenas o conteúdo da cadeia de caracteres.
 
-Como Fortran 77 é uma linguagem case-insensitive, o analisador foi construído de forma a aceitar diferentes combinações de maiúsculas e minúsculas nos identificadores e palavras reservadas. Os operadores relacionais e lógicos, como `.EQ.` ou `.TRUE.`, seguem a convenção uppercase típica de Fortran 77. Esta opção é especialmente relevante no reconhecimento de palavras reservadas e dos operadores lógicos e relacionais. No caso dos identificadores e palavras reservadas, a estratégia adotada consistiu em reconhecer primeiro uma sequência alfanumérica geral e, de seguida, verificar se o lexema corresponde a alguma palavra reservada através de uma tabela `reserved`.
+Como Fortran 77 é uma linguagem case-insensitive, o analisador foi construído de forma a aceitar diferentes combinações de maiúsculas e minúsculas. Os identificadores e palavras reservadas são normalizados para minúsculas no momento da tokenização. Os operadores relacionais e lógicos, como `.EQ.`, `.AND.` ou `.TRUE.`, são reconhecidos de forma case-insensitive — `.eq.`, `.EQ.` e `.Eq.` são todos aceites — sendo o valor normalizado para maiúsculas no momento da tokenização, pelo que o restante compilador trabalha sempre com a forma canónica uppercase. No caso dos identificadores e palavras reservadas, a estratégia adotada consistiu em reconhecer primeiro uma sequência alfanumérica geral e, de seguida, verificar se o lexema corresponde a alguma palavra reservada através de uma tabela `reserved`.
 
 Outro aspeto relevante foi o tratamento do formato tradicional de Fortran 77. Para acomodar características do formato fixo, foi introduzida uma etapa de pré-processamento antes da tokenização. Essa etapa trata situações como comentários em coluna 1, continuação de linha e identificação de labels no início da linha lógica. Assim, o lexer recebe uma versão já normalizada do programa, o que torna a tokenização mais simples.
 
@@ -201,6 +201,38 @@ Foi também implementada a verificação de labels utilizados em instruções `D
 
 Uma dificuldade encontrada nesta fase foi o tratamento de parâmetros de funções. Em Fortran 77, os parâmetros são declarados dentro do corpo da função com o seu tipo, e não na assinatura. Isto implica que, quando se entra no scope da função, os parâmetros são registados inicialmente sem tipo, sendo este atribuído posteriormente quando a declaração correspondente é encontrada.
 
+### Exemplos de AST
+
+Para ilustrar a estrutura interna produzida pelo compilador, apresenta-se o nó AST gerado para uma atribuição simples e para um ciclo DO.
+
+**Atribuição** `FAT = FAT * I`:
+
+```python
+("assignment",
+    ("id", "FAT", {"kind": "variable", "type": "INTEGER"}),
+    ("binop", "*",
+        ("id", "FAT", {"kind": "variable", "type": "INTEGER"}),
+        ("id", "I",   {"kind": "variable", "type": "INTEGER"}),
+        {"type": "INTEGER", "left_type": "INTEGER", "right_type": "INTEGER"}
+    ),
+    {"target_type": "INTEGER", "value_type": "INTEGER"}
+)
+```
+
+**Ciclo DO** `DO 10 I = 1, N`:
+
+```python
+("do", 10, "I",
+    ("int", 1, {"type": "INTEGER"}),
+    ("id", "N", {"kind": "variable", "type": "INTEGER"}),
+    ("int", 1, {"type": "INTEGER"}),
+    {"var_type": "INTEGER", "start_type": "INTEGER",
+     "end_type": "INTEGER", "step_type": "INTEGER"}
+)
+```
+
+Cada nó é um tuplo onde o primeiro elemento é o tag que identifica o tipo de construção, seguido dos seus filhos e de um dicionário de anotações semânticas no último elemento.
+
 ## Geração de Código
 
 A geração de código constitui a fase final do compilador, sendo responsável por traduzir a AST anotada produzida pela análise semântica em instruções para a máquina virtual EWVM. O gerador percorre a AST de forma recursiva através de um método dispatcher central, `_gen`, que identifica o tag de cada nó e delega para o método especializado correspondente.
@@ -224,6 +256,23 @@ O compilador implementado cobre os principais mecanismos pedidos pelo enunciado,
 A construção `SUBROUTINE` não foi implementada. Ao contrário das funções, as subrotinas não devolvem um valor e são invocadas com a instrução `CALL`, o que implicaria suporte adicional no lexer, no parser, na análise semântica e na geração de código.
 
 Arrays unidimensionais são suportados com alocação no heap usando `ALLOCN`, permitindo acesso dinâmico por índice. Arrays multidimensionais não foram testados e podem requerer extensão ao método de cálculo de endereço para considerar múltiplos índices e dimensões.
+
+## Testes e Resultados
+
+Os cinco exemplos do enunciado foram compilados e testados na máquina virtual EWVM. A tabela seguinte resume os inputs utilizados e os outputs esperados:
+
+| Exemplo           | Input       | Output esperado                                  |
+| ----------------- | ----------- | ------------------------------------------------ |
+| 1 — Olá, Mundo!   | —           | `Ola, Mundo!`                                    |
+| 2 — Fatorial      | `10`        | `Fatorial de 10: 3628800`                        |
+| 3 — É primo?      | `7`         | `7 e um numero primo`                            |
+| 3 — É primo?      | `10`        | `10 nao e um numero primo`                       |
+| 4 — Soma de array | `1 2 3 4 5` | `A soma dos numeros e: 15`                       |
+| 5 — Conversor     | `10`        | `BASE 2: 1010`, `BASE 3: 101`, `BASE 4: 22`, ... |
+
+Todos os exemplos foram verificados no site [https://ewvm.epl.di.uminho.pt/](https://ewvm.epl.di.uminho.pt/) com os ficheiros `.evm` gerados pelo compilador, produzindo os resultados esperados.
+
+O script `tester.py` compila automaticamente os 5 exemplos a partir dos ficheiros `.f` em `tests/` e gera os respetivos ficheiros `.evm`. A compilação de todos os exemplos completa sem erros semânticos.
 
 ## Como Correr o Compilador
 
