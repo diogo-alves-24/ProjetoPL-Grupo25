@@ -28,15 +28,15 @@ t_EQ  = r"="
 # regex explícito — Fortran aceita .lt. e .LT. igualmente)
 # ---------------------------------------------------------------------------
 
-def t_EQEQ(t): r"\.EQ\."; return t  # noqa: E704
-def t_NE(t):   r"\.NE\."; return t  # noqa: E704
-def t_LE(t):   r"\.LE\."; return t  # noqa: E704
-def t_LT(t):   r"\.LT\."; return t  # noqa: E704
-def t_GE(t):   r"\.GE\."; return t  # noqa: E704
-def t_GT(t):   r"\.GT\."; return t  # noqa: E704
-def t_AND(t):  r"\.AND\."; return t # noqa: E704
-def t_OR(t):   r"\.OR\.";  return t # noqa: E704
-def t_NOT(t):  r"\.NOT\."; return t # noqa: E704
+def t_EQEQ(t): r"\.EQ\.";  t.value = t.value.upper(); return t  # noqa: E704
+def t_NE(t):   r"\.NE\.";  t.value = t.value.upper(); return t  # noqa: E704
+def t_LE(t):   r"\.LE\.";  t.value = t.value.upper(); return t  # noqa: E704
+def t_LT(t):   r"\.LT\.";  t.value = t.value.upper(); return t  # noqa: E704
+def t_GE(t):   r"\.GE\.";  t.value = t.value.upper(); return t  # noqa: E704
+def t_GT(t):   r"\.GT\.";  t.value = t.value.upper(); return t  # noqa: E704
+def t_AND(t):  r"\.AND\."; t.value = t.value.upper(); return t  # noqa: E704
+def t_OR(t):   r"\.OR\.";  t.value = t.value.upper(); return t  # noqa: E704
+def t_NOT(t):  r"\.NOT\."; t.value = t.value.upper(); return t  # noqa: E704
 
 # ---------------------------------------------------------------------------
 # Literais numéricos
